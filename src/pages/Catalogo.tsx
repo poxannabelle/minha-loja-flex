@@ -5,8 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Search, ShoppingCart, Star } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import plazooLogo from "@/assets/plazoo-logo.png";
-import lojaLogo from "@/assets/loja-exemplo.png";
 
 const Catalogo = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -91,22 +89,6 @@ const Catalogo = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header with logos */}
-      <div className="bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-600 border-b border-yellow-700">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <img src={plazooLogo} alt="Plazoo" className="h-10" />
-            <div className="flex items-center gap-3">
-              <img src={lojaLogo} alt="Espaço da Mulher" className="h-16" />
-              <div>
-                <h2 className="text-xl font-bold text-white">Espaço da Mulher</h2>
-                <p className="text-sm text-yellow-100">Beleza e Bem-estar</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="container mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-foreground mb-2">Catálogo de Produtos</h1>
@@ -147,7 +129,7 @@ const Catalogo = () => {
                     className="w-full h-64 object-cover"
                   />
                   {product.discount > 0 && (
-                    <Badge className="absolute top-4 right-4 bg-yellow-600 text-white hover:bg-yellow-700">
+                    <Badge className="absolute top-4 right-4 bg-destructive text-destructive-foreground">
                       -{product.discount}%
                     </Badge>
                   )}
@@ -179,7 +161,7 @@ const Catalogo = () => {
                 </div>
               </CardContent>
               <CardFooter className="p-6 pt-0">
-                <Button className="w-full gap-2 bg-yellow-600 hover:bg-yellow-700 text-white">
+                <Button className="w-full gap-2">
                   <ShoppingCart className="h-4 w-4" />
                   Adicionar ao Carrinho
                 </Button>
