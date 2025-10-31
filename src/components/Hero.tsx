@@ -12,7 +12,7 @@ const Hero = () => {
           <img 
             src={logo} 
             alt="Plazoo Logo" 
-            className="h-24 mx-auto mb-8"
+            className="h-32 mx-auto mb-8"
           />
           
           <h1 className="text-5xl md:text-7xl font-bold text-foreground mb-6 leading-tight">
