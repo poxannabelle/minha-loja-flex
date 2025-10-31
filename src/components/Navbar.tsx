@@ -1,9 +1,26 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Building2, Package, ShoppingCart, ClipboardList } from "lucide-react";
+import { Building2, Package, ShoppingCart, ClipboardList, User, LogOut } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/hooks/useAuth";
 import logo from "@/assets/plazoo-logo.png";
 
 const Navbar = () => {
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/auth");
+  };
+
   return (
     <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
       <div className="container mx-auto px-6">
@@ -40,10 +57,36 @@ const Navbar = () => {
           </div>
           
           <div className="flex items-center gap-4">
-            <Button variant="outline">Login</Button>
-            <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-              Cadastrar
-            </Button>
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <User className="h-4 w-4" />
+                    Minha Conta
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sair
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => navigate("/auth")}>
+                  Login
+                </Button>
+                <Button 
+                  className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                  onClick={() => navigate("/auth")}
+                >
+                  Cadastrar
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
