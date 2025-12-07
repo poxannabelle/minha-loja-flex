@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      cart_items: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          quantity: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cart_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -198,6 +233,119 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_addresses: {
+        Row: {
+          city: string
+          complement: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          label: string
+          neighborhood: string
+          number: string
+          state: string
+          street: string
+          updated_at: string
+          user_id: string
+          zip_code: string
+        }
+        Insert: {
+          city: string
+          complement?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          neighborhood: string
+          number: string
+          state: string
+          street: string
+          updated_at?: string
+          user_id: string
+          zip_code: string
+        }
+        Update: {
+          city?: string
+          complement?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          neighborhood?: string
+          number?: string
+          state?: string
+          street?: string
+          updated_at?: string
+          user_id?: string
+          zip_code?: string
+        }
+        Relationships: []
+      }
+      user_favorites: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_favorites_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_payment_methods: {
+        Row: {
+          brand: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          label: string
+          last_four_digits: string | null
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          label: string
+          last_four_digits?: string | null
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          last_four_digits?: string | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

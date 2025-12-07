@@ -68,6 +68,10 @@ const Navbar = () => {
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate("/minha-conta")}>
+                    <User className="mr-2 h-4 w-4" />
+                    Meu Perfil
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" />
                     Sair
