@@ -20,6 +20,7 @@ export type Database = {
           id: string
           product_id: string
           quantity: number
+          selected_variants: Json | null
           updated_at: string
           user_id: string
         }
@@ -28,6 +29,7 @@ export type Database = {
           id?: string
           product_id: string
           quantity?: number
+          selected_variants?: Json | null
           updated_at?: string
           user_id: string
         }
@@ -36,6 +38,7 @@ export type Database = {
           id?: string
           product_id?: string
           quantity?: number
+          selected_variants?: Json | null
           updated_at?: string
           user_id?: string
         }
@@ -90,6 +93,47 @@ export type Database = {
             columns: ["store_id"]
             isOneToOne: false
             referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_variants: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string | null
+          price_adjustment: number | null
+          product_id: string
+          stock_quantity: number
+          variant_type: string
+          variant_value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          price_adjustment?: number | null
+          product_id: string
+          stock_quantity?: number
+          variant_type: string
+          variant_value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          price_adjustment?: number | null
+          product_id?: string
+          stock_quantity?: number
+          variant_type?: string
+          variant_value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_variants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
