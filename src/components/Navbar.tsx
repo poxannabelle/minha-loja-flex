@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Building2, Package, ShoppingCart, ClipboardList, User, LogOut, LayoutDashboard } from "lucide-react";
+import { Building2, Package, ShoppingCart, ClipboardList, User, LogOut, LayoutDashboard, FolderTree } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +40,12 @@ const Navbar = () => {
               <Button variant="ghost" className="gap-2">
                 <Building2 className="h-4 w-4" />
                 Empresas
+              </Button>
+            </Link>
+            <Link to="/categorias">
+              <Button variant="ghost" className="gap-2">
+                <FolderTree className="h-4 w-4" />
+                Categorias
               </Button>
             </Link>
             <Link to="/produtos">
