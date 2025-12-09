@@ -4,9 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { Upload, X } from "lucide-react";
@@ -22,26 +21,12 @@ export const NewStoreModal = ({ open, onOpenChange }: NewStoreModalProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
     description: "",
     primary_color: "#000000",
     secondary_color: "#FFD700",
-  });
-
-  // Fetch all available categories (from all stores for now, or create global ones)
-  const { data: categories } = useQuery({
-    queryKey: ["all-categories"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("id, name")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,7 +78,7 @@ export const NewStoreModal = ({ open, onOpenChange }: NewStoreModalProps) => {
       }
 
       // Create store
-      const { data: store, error } = await supabase
+      const { error } = await supabase
         .from("stores")
         .insert({
           name: formData.name,
@@ -103,29 +88,13 @@ export const NewStoreModal = ({ open, onOpenChange }: NewStoreModalProps) => {
           primary_color: formData.primary_color,
           secondary_color: formData.secondary_color,
           owner_id: user.id,
-        })
-        .select()
-        .single();
+        });
       
       if (error) throw error;
-
-      // Create categories for this store (copy selected categories)
-      if (selectedCategories.length > 0 && store) {
-        const categoriesToCreate = categories
-          ?.filter(c => selectedCategories.includes(c.id))
-          .map(c => ({
-            store_id: store.id,
-            name: c.name,
-          }));
-        
-        if (categoriesToCreate && categoriesToCreate.length > 0) {
-          await supabase.from("categories").insert(categoriesToCreate);
-        }
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stores"] });
-      toast.success("Empresa cadastrada com sucesso!");
+      toast.success("Empresa cadastrada com sucesso! Configure as categorias nas configurações da loja.");
       setFormData({
         name: "",
         slug: "",
@@ -135,7 +104,6 @@ export const NewStoreModal = ({ open, onOpenChange }: NewStoreModalProps) => {
       });
       setLogoFile(null);
       setLogoPreview(null);
-      setSelectedCategories([]);
       onOpenChange(false);
     },
     onError: (error: any) => {
@@ -253,35 +221,6 @@ export const NewStoreModal = ({ open, onOpenChange }: NewStoreModalProps) => {
             </div>
           </div>
 
-          {categories && categories.length > 0 && (
-            <div className="space-y-2">
-              <Label>Categorias</Label>
-              <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded-md p-2">
-                {categories.map((category) => (
-                  <div key={category.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={category.id}
-                      checked={selectedCategories.includes(category.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedCategories([...selectedCategories, category.id]);
-                        } else {
-                          setSelectedCategories(selectedCategories.filter(id => id !== category.id));
-                        }
-                      }}
-                    />
-                    <label
-                      htmlFor={category.id}
-                      className="text-sm cursor-pointer"
-                    >
-                      {category.name}
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="primary_color">Cor Primária</Label>
@@ -316,6 +255,10 @@ export const NewStoreModal = ({ open, onOpenChange }: NewStoreModalProps) => {
               </div>
             </div>
           </div>
+
+          <p className="text-xs text-muted-foreground">
+            * Após criar a empresa, configure as categorias nas configurações da loja.
+          </p>
 
           <div className="flex gap-2 pt-4">
             <Button

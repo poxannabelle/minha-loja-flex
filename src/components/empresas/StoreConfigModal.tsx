@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, Upload, MapPin, Palette, FolderTree } from "lucide-react";
+import { Plus, Trash2, MapPin, Palette, FolderTree, Link2, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -24,13 +24,29 @@ interface StoreConfigModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  description: string | null;
+  parent_id: string | null;
+}
+
 export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModalProps) => {
   const queryClient = useQueryClient();
   const [logoUrl, setLogoUrl] = useState(store?.logo_url || "");
   const [primaryColor, setPrimaryColor] = useState(store?.primary_color || "#000000");
   const [secondaryColor, setSecondaryColor] = useState(store?.secondary_color || "#FFD700");
   const [newUnit, setNewUnit] = useState({ name: "", address: "", city: "", state: "", zip_code: "", phone: "", is_main: false });
-  const [newCategory, setNewCategory] = useState({ name: "", description: "" });
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+
+  // Update state when store changes
+  useEffect(() => {
+    if (store) {
+      setLogoUrl(store.logo_url || "");
+      setPrimaryColor(store.primary_color || "#000000");
+      setSecondaryColor(store.secondary_color || "#FFD700");
+    }
+  }, [store]);
 
   // Fetch units
   const { data: units = [] } = useQuery({
@@ -48,21 +64,46 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
     enabled: !!store?.id,
   });
 
-  // Fetch categories
-  const { data: categories = [] } = useQuery({
-    queryKey: ["store-categories", store?.id],
+  // Fetch global categories (predefined)
+  const { data: globalCategories = [] } = useQuery({
+    queryKey: ["global-categories"],
     queryFn: async () => {
-      if (!store?.id) return [];
       const { data, error } = await supabase
         .from("categories")
         .select("*")
-        .eq("store_id", store.id)
+        .is("store_id", null)
         .order("name");
       if (error) throw error;
-      return data;
+      return data as Category[];
+    },
+  });
+
+  // Fetch linked categories for this store
+  const { data: linkedCategories = [] } = useQuery({
+    queryKey: ["store-linked-categories", store?.id],
+    queryFn: async () => {
+      if (!store?.id) return [];
+      const { data, error } = await supabase
+        .from("store_categories")
+        .select("category_id")
+        .eq("store_id", store.id);
+      if (error) throw error;
+      return data.map((sc) => sc.category_id);
     },
     enabled: !!store?.id,
   });
+
+  // Update selected categories when linked categories are fetched
+  useEffect(() => {
+    setSelectedCategories(linkedCategories);
+  }, [linkedCategories]);
+
+  // Get parent categories
+  const parentCategories = globalCategories.filter((c) => !c.parent_id);
+  
+  // Get subcategories for a parent
+  const getSubcategories = (parentId: string) => 
+    globalCategories.filter((c) => c.parent_id === parentId);
 
   // Update store colors/logo
   const updateStoreMutation = useMutation({
@@ -115,35 +156,55 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
     onError: () => toast.error("Erro ao remover unidade"),
   });
 
-  // Add category
-  const addCategoryMutation = useMutation({
+  // Save category links
+  const saveCategoriesMutation = useMutation({
     mutationFn: async () => {
       if (!store?.id) return;
-      const { error } = await supabase
-        .from("categories")
-        .insert({ ...newCategory, store_id: store.id });
-      if (error) throw error;
+      
+      // Delete existing links
+      await supabase
+        .from("store_categories")
+        .delete()
+        .eq("store_id", store.id);
+      
+      // Insert new links
+      if (selectedCategories.length > 0) {
+        const links = selectedCategories.map((categoryId) => ({
+          store_id: store.id,
+          category_id: categoryId,
+        }));
+        
+        const { error } = await supabase.from("store_categories").insert(links);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["store-categories", store?.id] });
-      setNewCategory({ name: "", description: "" });
-      toast.success("Categoria adicionada!");
+      queryClient.invalidateQueries({ queryKey: ["store-linked-categories", store?.id] });
+      toast.success("Categorias vinculadas com sucesso!");
     },
-    onError: () => toast.error("Erro ao adicionar categoria"),
+    onError: () => toast.error("Erro ao vincular categorias"),
   });
 
-  // Delete category
-  const deleteCategoryMutation = useMutation({
-    mutationFn: async (categoryId: string) => {
-      const { error } = await supabase.from("categories").delete().eq("id", categoryId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["store-categories", store?.id] });
-      toast.success("Categoria removida!");
-    },
-    onError: () => toast.error("Erro ao remover categoria"),
-  });
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
+  const toggleParentWithChildren = (parentId: string) => {
+    const subcategories = getSubcategories(parentId);
+    const allIds = [parentId, ...subcategories.map((s) => s.id)];
+    
+    const allSelected = allIds.every((id) => selectedCategories.includes(id));
+    
+    if (allSelected) {
+      setSelectedCategories((prev) => prev.filter((id) => !allIds.includes(id)));
+    } else {
+      setSelectedCategories((prev) => [...new Set([...prev, ...allIds])]);
+    }
+  };
 
   if (!store) return null;
 
@@ -311,11 +372,10 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="is-main"
                     checked={newUnit.is_main}
-                    onChange={(e) => setNewUnit({ ...newUnit, is_main: e.target.checked })}
+                    onCheckedChange={(checked) => setNewUnit({ ...newUnit, is_main: checked === true })}
                   />
                   <Label htmlFor="is-main">Unidade Principal</Label>
                 </div>
@@ -367,64 +427,91 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
           <TabsContent value="categories" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Nova Categoria</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Link2 className="h-5 w-5" />
+                  Vincular Categorias Pré-definidas
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Nome da Categoria</Label>
-                  <Input
-                    placeholder="Eletrônicos, Roupas, etc."
-                    value={newCategory.name}
-                    onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Descrição (opcional)</Label>
-                  <Textarea
-                    placeholder="Descrição da categoria..."
-                    value={newCategory.description}
-                    onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
-                  />
-                </div>
-                <Button
-                  onClick={() => addCategoryMutation.mutate()}
-                  disabled={!newCategory.name}
-                  className="gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Adicionar Categoria
-                </Button>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-2">
-              <h3 className="font-semibold">Categorias Cadastradas</h3>
-              {categories.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Nenhuma categoria cadastrada</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {categories.map((category: any) => (
-                    <Card key={category.id}>
-                      <CardContent className="flex items-center justify-between py-3">
-                        <div>
-                          <p className="font-medium">{category.name}</p>
-                          {category.description && (
-                            <p className="text-xs text-muted-foreground">{category.description}</p>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Selecione as categorias que serão utilizadas nesta loja. As categorias são gerenciadas na página de Categorias.
+                </p>
+                
+                {globalCategories.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FolderTree className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">
+                      Nenhuma categoria pré-definida encontrada.
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Crie categorias na página de Categorias primeiro.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                    {parentCategories.map((parent) => {
+                      const subcategories = getSubcategories(parent.id);
+                      const allIds = [parent.id, ...subcategories.map((s) => s.id)];
+                      const allSelected = allIds.every((id) => selectedCategories.includes(id));
+                      const someSelected = allIds.some((id) => selectedCategories.includes(id));
+                      
+                      return (
+                        <div key={parent.id} className="border rounded-lg p-3">
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              checked={allSelected}
+                              ref={(el) => {
+                                if (el) {
+                                  (el as any).indeterminate = someSelected && !allSelected;
+                                }
+                              }}
+                              onCheckedChange={() => toggleParentWithChildren(parent.id)}
+                            />
+                            <div className="flex-1">
+                              <p className="font-medium">{parent.name}</p>
+                              {parent.description && (
+                                <p className="text-xs text-muted-foreground">{parent.description}</p>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {subcategories.length > 0 && (
+                            <div className="ml-6 mt-2 space-y-2 border-l pl-4">
+                              {subcategories.map((sub) => (
+                                <div key={sub.id} className="flex items-center gap-3">
+                                  <Checkbox
+                                    checked={selectedCategories.includes(sub.id)}
+                                    onCheckedChange={() => toggleCategory(sub.id)}
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                    <span className="text-sm">{sub.name}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteCategoryMutation.mutate(category.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <p className="text-sm text-muted-foreground">
+                    {selectedCategories.length} categoria(s) selecionada(s)
+                  </p>
+                  <Button 
+                    onClick={() => saveCategoriesMutation.mutate()}
+                    disabled={saveCategoriesMutation.isPending}
+                    className="gap-2"
+                  >
+                    <Link2 className="h-4 w-4" />
+                    {saveCategoriesMutation.isPending ? "Salvando..." : "Salvar Vínculos"}
+                  </Button>
                 </div>
-              )}
-            </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </DialogContent>

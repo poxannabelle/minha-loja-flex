@@ -41,7 +41,7 @@ interface Category {
   name: string;
   description: string | null;
   parent_id: string | null;
-  store_id: string;
+  store_id: string | null;
 }
 
 const Categorias = () => {
@@ -55,35 +55,18 @@ const Categorias = () => {
     parent_id: "",
   });
 
-  // Fetch user's stores
-  const { data: stores } = useQuery({
-    queryKey: ["user-stores"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stores")
-        .select("id, name")
-        .eq("owner_id", user?.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  const [selectedStoreId, setSelectedStoreId] = useState<string>("");
-
-  // Fetch categories for selected store
+  // Fetch global categories (store_id is null)
   const { data: categories, isLoading } = useQuery({
-    queryKey: ["store-categories", selectedStoreId],
+    queryKey: ["global-categories"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
         .select("*")
-        .eq("store_id", selectedStoreId)
+        .is("store_id", null)
         .order("name");
       if (error) throw error;
       return data as Category[];
     },
-    enabled: !!selectedStoreId,
   });
 
   // Get parent categories (categories without parent)
@@ -99,13 +82,12 @@ const Categorias = () => {
         name: formData.name,
         description: formData.description || null,
         parent_id: formData.parent_id || null,
-        store_id: selectedStoreId,
+        store_id: null, // Global category
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["store-categories", selectedStoreId] });
-      queryClient.invalidateQueries({ queryKey: ["all-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["global-categories"] });
       toast.success("Categoria criada com sucesso!");
       resetForm();
     },
@@ -128,8 +110,7 @@ const Categorias = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["store-categories", selectedStoreId] });
-      queryClient.invalidateQueries({ queryKey: ["all-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["global-categories"] });
       toast.success("Categoria atualizada!");
       resetForm();
     },
@@ -144,8 +125,7 @@ const Categorias = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["store-categories", selectedStoreId] });
-      queryClient.invalidateQueries({ queryKey: ["all-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["global-categories"] });
       toast.success("Categoria excluída!");
     },
     onError: () => {
@@ -203,50 +183,24 @@ const Categorias = () => {
           <div>
             <h1 className="text-4xl font-bold text-foreground mb-2">Categorias</h1>
             <p className="text-muted-foreground">
-              Gerencie as categorias e subcategorias dos seus produtos
+              Gerencie as categorias pré-definidas que poderão ser vinculadas às lojas
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
-            <Select value={selectedStoreId} onValueChange={setSelectedStoreId}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Selecione uma loja" />
-              </SelectTrigger>
-              <SelectContent>
-                {stores?.map((store) => (
-                  <SelectItem key={store.id} value={store.id}>
-                    {store.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button
-              onClick={() => {
-                setEditingCategory(null);
-                setFormData({ name: "", description: "", parent_id: "" });
-                setIsModalOpen(true);
-              }}
-              disabled={!selectedStoreId}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Nova Categoria
-            </Button>
-          </div>
+          <Button
+            onClick={() => {
+              setEditingCategory(null);
+              setFormData({ name: "", description: "", parent_id: "" });
+              setIsModalOpen(true);
+            }}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Nova Categoria
+          </Button>
         </div>
 
-        {!selectedStoreId ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <FolderTree className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Selecione uma loja</h3>
-              <p className="text-muted-foreground">
-                Escolha uma loja para visualizar e gerenciar suas categorias
-              </p>
-            </CardContent>
-          </Card>
-        ) : isLoading ? (
+        {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {[...Array(6)].map((_, i) => (
               <Card key={i}>
@@ -263,7 +217,7 @@ const Categorias = () => {
               <FolderTree className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">Nenhuma categoria</h3>
               <p className="text-muted-foreground mb-4">
-                Crie sua primeira categoria para organizar seus produtos
+                Crie categorias pré-definidas para organizar os produtos das lojas
               </p>
               <Button onClick={() => setIsModalOpen(true)} className="gap-2">
                 <Plus className="h-4 w-4" />
