@@ -371,14 +371,14 @@ const Categorias = () => {
             <div className="space-y-2">
               <Label htmlFor="parent">Categoria Pai (opcional)</Label>
               <Select
-                value={formData.parent_id}
-                onValueChange={(value) => setFormData({ ...formData, parent_id: value })}
+                value={formData.parent_id || "none"}
+                onValueChange={(value) => setFormData({ ...formData, parent_id: value === "none" ? "" : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Nenhuma (categoria principal)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhuma (categoria principal)</SelectItem>
+                  <SelectItem value="none">Nenhuma (categoria principal)</SelectItem>
                   {parentCategories
                     .filter((c) => c.id !== editingCategory?.id)
                     .map((category) => (
