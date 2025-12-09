@@ -7,11 +7,13 @@ import { Plus, Search, Building2, Settings, MapPin, FolderTree } from "lucide-re
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { StoreConfigModal } from "@/components/empresas/StoreConfigModal";
+import { NewStoreModal } from "@/components/empresas/NewStoreModal";
 
 const Empresas = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStore, setSelectedStore] = useState<any>(null);
   const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [newStoreModalOpen, setNewStoreModalOpen] = useState(false);
 
   const { data: stores = [], isLoading } = useQuery({
     queryKey: ["stores"],
@@ -56,7 +58,10 @@ const Empresas = () => {
             <h1 className="text-4xl font-bold text-foreground mb-2">Empresas</h1>
             <p className="text-muted-foreground">Gerencie as lojas cadastradas na plataforma</p>
           </div>
-          <Button className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
+          <Button 
+            onClick={() => setNewStoreModalOpen(true)}
+            className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2"
+          >
             <Plus className="h-4 w-4" />
             Nova Empresa
           </Button>
@@ -172,6 +177,11 @@ const Empresas = () => {
         store={selectedStore}
         open={configModalOpen}
         onOpenChange={setConfigModalOpen}
+      />
+
+      <NewStoreModal
+        open={newStoreModalOpen}
+        onOpenChange={setNewStoreModalOpen}
       />
     </div>
   );
