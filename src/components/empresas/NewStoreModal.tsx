@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { Upload, X } from "lucide-react";
 
 interface NewStoreModalProps {
   open: boolean;
@@ -17,31 +19,109 @@ interface NewStoreModalProps {
 export const NewStoreModal = ({ open, onOpenChange }: NewStoreModalProps) => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
     description: "",
-    logo_url: "",
     primary_color: "#000000",
     secondary_color: "#FFD700",
   });
+
+  // Fetch all available categories (from all stores for now, or create global ones)
+  const { data: categories } = useQuery({
+    queryKey: ["all-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("A imagem deve ter no máximo 2MB");
+        return;
+      }
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeLogo = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const createStoreMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error("Usuário não autenticado");
       
-      const { error } = await supabase
+      let logoUrl: string | null = null;
+
+      // Upload logo if provided
+      if (logoFile) {
+        const fileExt = logoFile.name.split(".").pop();
+        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from("store-logos")
+          .upload(fileName, logoFile);
+        
+        if (uploadError) throw uploadError;
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from("store-logos")
+          .getPublicUrl(fileName);
+        
+        logoUrl = publicUrl;
+      }
+
+      // Create store
+      const { data: store, error } = await supabase
         .from("stores")
         .insert({
           name: formData.name,
           slug: formData.slug.toLowerCase().replace(/[^a-z0-9-]/g, ""),
           description: formData.description || null,
-          logo_url: formData.logo_url || null,
+          logo_url: logoUrl,
           primary_color: formData.primary_color,
           secondary_color: formData.secondary_color,
           owner_id: user.id,
-        });
+        })
+        .select()
+        .single();
+      
       if (error) throw error;
+
+      // Create categories for this store (copy selected categories)
+      if (selectedCategories.length > 0 && store) {
+        const categoriesToCreate = categories
+          ?.filter(c => selectedCategories.includes(c.id))
+          .map(c => ({
+            store_id: store.id,
+            name: c.name,
+          }));
+        
+        if (categoriesToCreate && categoriesToCreate.length > 0) {
+          await supabase.from("categories").insert(categoriesToCreate);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stores"] });
@@ -50,10 +130,12 @@ export const NewStoreModal = ({ open, onOpenChange }: NewStoreModalProps) => {
         name: "",
         slug: "",
         description: "",
-        logo_url: "",
         primary_color: "#000000",
         secondary_color: "#FFD700",
       });
+      setLogoFile(null);
+      setLogoPreview(null);
+      setSelectedCategories([]);
       onOpenChange(false);
     },
     onError: (error: any) => {
@@ -133,14 +215,72 @@ export const NewStoreModal = ({ open, onOpenChange }: NewStoreModalProps) => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="logo_url">URL da Logo</Label>
-            <Input
-              id="logo_url"
-              placeholder="https://exemplo.com/logo.png"
-              value={formData.logo_url}
-              onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
-            />
+            <Label>Logo da Empresa</Label>
+            <div className="flex items-center gap-4">
+              {logoPreview ? (
+                <div className="relative">
+                  <img
+                    src={logoPreview}
+                    alt="Preview"
+                    className="w-16 h-16 object-cover rounded-md border"
+                  />
+                  <button
+                    type="button"
+                    onClick={removeLogo}
+                    className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-16 h-16 border-2 border-dashed rounded-md flex items-center justify-center cursor-pointer hover:border-primary transition-colors"
+                >
+                  <Upload className="h-6 w-6 text-muted-foreground" />
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <span className="text-sm text-muted-foreground">
+                Clique para enviar (máx. 2MB)
+              </span>
+            </div>
           </div>
+
+          {categories && categories.length > 0 && (
+            <div className="space-y-2">
+              <Label>Categorias</Label>
+              <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded-md p-2">
+                {categories.map((category) => (
+                  <div key={category.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={category.id}
+                      checked={selectedCategories.includes(category.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedCategories([...selectedCategories, category.id]);
+                        } else {
+                          setSelectedCategories(selectedCategories.filter(id => id !== category.id));
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor={category.id}
+                      className="text-sm cursor-pointer"
+                    >
+                      {category.name}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
