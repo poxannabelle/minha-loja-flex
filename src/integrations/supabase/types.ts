@@ -59,7 +59,7 @@ export type Database = {
           id: string
           name: string
           parent_id: string | null
-          store_id: string
+          store_id: string | null
           updated_at: string
         }
         Insert: {
@@ -68,7 +68,7 @@ export type Database = {
           id?: string
           name: string
           parent_id?: string | null
-          store_id: string
+          store_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -77,7 +77,7 @@ export type Database = {
           id?: string
           name?: string
           parent_id?: string | null
-          store_id?: string
+          store_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -227,6 +227,42 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      store_categories: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          store_id: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          store_id: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_categories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_categories_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       store_units: {
         Row: {
