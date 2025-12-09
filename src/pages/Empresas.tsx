@@ -1,15 +1,50 @@
+import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Plus, Search, Building2 } from "lucide-react";
+import { Plus, Search, Building2, Settings, MapPin, FolderTree } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { StoreConfigModal } from "@/components/empresas/StoreConfigModal";
 
 const Empresas = () => {
-  const empresas = [
-    { id: 1, nome: "Loja Exemplo 1", subdominio: "loja1.plazoo.com", plano: "Professional", status: "Ativa" },
-    { id: 2, nome: "Loja Exemplo 2", subdominio: "loja2.plazoo.com", plano: "Starter", status: "Ativa" },
-  ];
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStore, setSelectedStore] = useState<any>(null);
+  const [configModalOpen, setConfigModalOpen] = useState(false);
+
+  const { data: stores = [], isLoading } = useQuery({
+    queryKey: ["stores"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stores")
+        .select(`
+          *,
+          store_units:store_units(count),
+          categories:categories(count)
+        `)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const filteredStores = stores.filter((store: any) =>
+    store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    store.slug.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleOpenConfig = (store: any) => {
+    setSelectedStore({
+      id: store.id,
+      nome: store.name,
+      slug: store.slug,
+      logo_url: store.logo_url,
+      primary_color: store.primary_color,
+      secondary_color: store.secondary_color,
+    });
+    setConfigModalOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -34,7 +69,11 @@ const Empresas = () => {
           <CardContent>
             <div className="flex gap-4">
               <div className="flex-1">
-                <Input placeholder="Buscar por nome ou subdomínio..." />
+                <Input 
+                  placeholder="Buscar por nome ou subdomínio..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
               <Button variant="outline" className="gap-2">
                 <Search className="h-4 w-4" />
@@ -45,41 +84,95 @@ const Empresas = () => {
         </Card>
 
         <div className="grid gap-6">
-          {empresas.map((empresa) => (
-            <Card key={empresa.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-accent/10 rounded-lg">
-                      <Building2 className="h-6 w-6 text-accent" />
+          {isLoading ? (
+            <p className="text-muted-foreground">Carregando...</p>
+          ) : filteredStores.length === 0 ? (
+            <p className="text-muted-foreground">Nenhuma empresa encontrada</p>
+          ) : (
+            filteredStores.map((store: any) => (
+              <Card key={store.id}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4">
+                      {store.logo_url ? (
+                        <img 
+                          src={store.logo_url} 
+                          alt={store.name} 
+                          className="h-12 w-12 object-contain rounded-lg border"
+                        />
+                      ) : (
+                        <div 
+                          className="p-3 rounded-lg"
+                          style={{ backgroundColor: store.primary_color || '#000' }}
+                        >
+                          <Building2 className="h-6 w-6 text-white" />
+                        </div>
+                      )}
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          {store.name}
+                          <div 
+                            className="h-3 w-3 rounded-full border"
+                            style={{ backgroundColor: store.primary_color }}
+                            title="Cor primária"
+                          />
+                          <div 
+                            className="h-3 w-3 rounded-full border"
+                            style={{ backgroundColor: store.secondary_color }}
+                            title="Cor secundária"
+                          />
+                        </CardTitle>
+                        <CardDescription className="mt-1">{store.slug}.plazoo.com</CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleOpenConfig(store)}
+                        className="gap-2"
+                      >
+                        <Settings className="h-4 w-4" />
+                        Configurar
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-8 text-sm">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Unidades:</span>
+                      <span className="font-medium">{store.store_units?.[0]?.count || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <FolderTree className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Categorias:</span>
+                      <span className="font-medium">{store.categories?.[0]?.count || 0}</span>
                     </div>
                     <div>
-                      <CardTitle>{empresa.nome}</CardTitle>
-                      <CardDescription className="mt-1">{empresa.subdominio}</CardDescription>
+                      <span className="text-muted-foreground">Status:</span>
+                      <span className={`ml-2 font-medium ${
+                        store.status === 'ativa' ? 'text-green-600' : 
+                        store.status === 'inativa' ? 'text-red-600' : 'text-yellow-600'
+                      }`}>
+                        {store.status === 'ativa' ? 'Ativa' : 
+                         store.status === 'inativa' ? 'Inativa' : 'Em Configuração'}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm">Ver Detalhes</Button>
-                    <Button variant="outline" size="sm">Editar</Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-8 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Plano:</span>
-                    <span className="ml-2 font-medium">{empresa.plano}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Status:</span>
-                    <span className="ml-2 font-medium text-green-600">{empresa.status}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
+
+      <StoreConfigModal
+        store={selectedStore}
+        open={configModalOpen}
+        onOpenChange={setConfigModalOpen}
+      />
     </div>
   );
 };

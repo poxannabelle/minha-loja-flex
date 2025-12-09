@@ -228,6 +228,56 @@ export type Database = {
         }
         Relationships: []
       }
+      store_units: {
+        Row: {
+          address: string | null
+          city: string | null
+          created_at: string
+          id: string
+          is_main: boolean
+          name: string
+          phone: string | null
+          state: string | null
+          store_id: string
+          updated_at: string
+          zip_code: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          is_main?: boolean
+          name: string
+          phone?: string | null
+          state?: string | null
+          store_id: string
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          is_main?: boolean
+          name?: string
+          phone?: string | null
+          state?: string | null
+          store_id?: string
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_units_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stores: {
         Row: {
           created_at: string
