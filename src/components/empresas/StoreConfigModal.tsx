@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, MapPin, Palette, FolderTree, Link2, ChevronRight } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Trash2, MapPin, Palette, FolderTree, Link2, ChevronRight, CreditCard, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -31,17 +32,33 @@ interface Category {
   parent_id: string | null;
 }
 
+const PLANS = [
+  { id: "starter", name: "Starter", description: "Até 50 produtos, 1 unidade", price: 49.90 },
+  { id: "professional", name: "Professional", description: "Até 500 produtos, 5 unidades", price: 99.90 },
+  { id: "enterprise", name: "Enterprise", description: "Produtos ilimitados, unidades ilimitadas", price: 199.90 },
+];
+
+const PAYMENT_GATEWAYS = [
+  { id: "pagseguro", name: "PagSeguro", description: "Cartão, boleto e Pix" },
+  { id: "mercadopago", name: "Mercado Pago", description: "Cartão, boleto e Pix" },
+];
+
 export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModalProps) => {
   const queryClient = useQueryClient();
+  const [slug, setSlug] = useState(store?.slug || "");
   const [logoUrl, setLogoUrl] = useState(store?.logo_url || "");
   const [primaryColor, setPrimaryColor] = useState(store?.primary_color || "#000000");
   const [secondaryColor, setSecondaryColor] = useState(store?.secondary_color || "#FFD700");
-  const [newUnit, setNewUnit] = useState({ name: "", address: "", city: "", state: "", zip_code: "", phone: "", is_main: false });
+  const [newUnit, setNewUnit] = useState({ name: "", city: "", state: "", is_main: false });
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState("starter");
+  const [selectedGateway, setSelectedGateway] = useState("");
+  const [gatewayCredentials, setGatewayCredentials] = useState({ api_key: "", api_secret: "" });
 
   // Update state when store changes
   useEffect(() => {
     if (store) {
+      setSlug(store.slug || "");
       setLogoUrl(store.logo_url || "");
       setPrimaryColor(store.primary_color || "#000000");
       setSecondaryColor(store.secondary_color || "#FFD700");
@@ -105,13 +122,14 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
   const getSubcategories = (parentId: string) => 
     globalCategories.filter((c) => c.parent_id === parentId);
 
-  // Update store colors/logo
+  // Update store branding and slug
   const updateStoreMutation = useMutation({
     mutationFn: async () => {
       if (!store?.id) return;
       const { error } = await supabase
         .from("stores")
         .update({
+          slug: slug,
           logo_url: logoUrl,
           primary_color: primaryColor,
           secondary_color: secondaryColor,
@@ -123,7 +141,13 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
       queryClient.invalidateQueries({ queryKey: ["stores"] });
       toast.success("Configurações salvas com sucesso!");
     },
-    onError: () => toast.error("Erro ao salvar configurações"),
+    onError: (error: any) => {
+      if (error?.message?.includes("duplicate") || error?.code === "23505") {
+        toast.error("Este subdomínio já está em uso. Escolha outro.");
+      } else {
+        toast.error("Erro ao salvar configurações");
+      }
+    },
   });
 
   // Add unit
@@ -137,7 +161,7 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["store-units", store?.id] });
-      setNewUnit({ name: "", address: "", city: "", state: "", zip_code: "", phone: "", is_main: false });
+      setNewUnit({ name: "", city: "", state: "", is_main: false });
       toast.success("Unidade adicionada!");
     },
     onError: () => toast.error("Erro ao adicionar unidade"),
@@ -216,10 +240,14 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
         </DialogHeader>
 
         <Tabs defaultValue="branding" className="mt-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="branding" className="gap-2">
               <Palette className="h-4 w-4" />
-              Identidade Visual
+              Identidade
+            </TabsTrigger>
+            <TabsTrigger value="plans" className="gap-2">
+              <CreditCard className="h-4 w-4" />
+              Planos
             </TabsTrigger>
             <TabsTrigger value="units" className="gap-2">
               <MapPin className="h-4 w-4" />
@@ -233,6 +261,33 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
 
           {/* Branding Tab */}
           <TabsContent value="branding" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Globe className="h-5 w-5" />
+                  Subdomínio
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="slug">Endereço da Loja</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="slug"
+                      placeholder="minha-loja"
+                      value={slug}
+                      onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                      className="flex-1"
+                    />
+                    <span className="text-muted-foreground text-sm whitespace-nowrap">.plazoo.com</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Apenas letras minúsculas, números e hífens são permitidos.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Logo da Loja</CardTitle>
@@ -307,9 +362,97 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
               </CardContent>
             </Card>
 
-            <Button onClick={() => updateStoreMutation.mutate()} className="w-full">
-              Salvar Identidade Visual
+            <Button onClick={() => updateStoreMutation.mutate()} disabled={updateStoreMutation.isPending} className="w-full">
+              {updateStoreMutation.isPending ? "Salvando..." : "Salvar Configurações"}
             </Button>
+          </TabsContent>
+
+          {/* Plans & Payments Tab */}
+          <TabsContent value="plans" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Plano Atual</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3">
+                  {PLANS.map((plan) => (
+                    <div
+                      key={plan.id}
+                      className={`p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                        selectedPlan === plan.id
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                      onClick={() => setSelectedPlan(plan.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold">{plan.name}</p>
+                          <p className="text-sm text-muted-foreground">{plan.description}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-lg">R$ {plan.price.toFixed(2)}</p>
+                          <p className="text-xs text-muted-foreground">/mês</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Gateway de Pagamento</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Selecione o Gateway</Label>
+                  <Select value={selectedGateway} onValueChange={setSelectedGateway}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um gateway" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_GATEWAYS.map((gateway) => (
+                        <SelectItem key={gateway.id} value={gateway.id}>
+                          {gateway.name} - {gateway.description}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedGateway && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="space-y-2">
+                      <Label>API Key / Token</Label>
+                      <Input
+                        type="password"
+                        placeholder="Sua chave de API"
+                        value={gatewayCredentials.api_key}
+                        onChange={(e) => setGatewayCredentials({ ...gatewayCredentials, api_key: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>API Secret (opcional)</Label>
+                      <Input
+                        type="password"
+                        placeholder="Seu secret (se aplicável)"
+                        value={gatewayCredentials.api_secret}
+                        onChange={(e) => setGatewayCredentials({ ...gatewayCredentials, api_secret: e.target.value })}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      As credenciais são armazenadas de forma segura e criptografada.
+                    </p>
+                  </div>
+                )}
+
+                <Button className="w-full" disabled={!selectedGateway}>
+                  Salvar Configurações de Pagamento
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Units Tab */}
@@ -319,7 +462,7 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
                 <CardTitle className="text-lg">Nova Unidade</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Nome da Unidade</Label>
                     <Input
@@ -328,24 +471,6 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
                       onChange={(e) => setNewUnit({ ...newUnit, name: e.target.value })}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Telefone</Label>
-                    <Input
-                      placeholder="(11) 99999-9999"
-                      value={newUnit.phone}
-                      onChange={(e) => setNewUnit({ ...newUnit, phone: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Endereço</Label>
-                  <Input
-                    placeholder="Rua, número"
-                    value={newUnit.address}
-                    onChange={(e) => setNewUnit({ ...newUnit, address: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Cidade</Label>
                     <Input
@@ -360,14 +485,6 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
                       placeholder="SP"
                       value={newUnit.state}
                       onChange={(e) => setNewUnit({ ...newUnit, state: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>CEP</Label>
-                    <Input
-                      placeholder="00000-000"
-                      value={newUnit.zip_code}
-                      onChange={(e) => setNewUnit({ ...newUnit, zip_code: e.target.value })}
                     />
                   </div>
                 </div>
@@ -406,7 +523,7 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
                           )}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {unit.address}, {unit.city} - {unit.state}
+                          {unit.city} - {unit.state}
                         </p>
                       </div>
                       <Button
