@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, MapPin, Palette, FolderTree, Link2, ChevronRight, CreditCard, Globe } from "lucide-react";
+import { Plus, Trash2, MapPin, Palette, FolderTree, Link2, ChevronRight, CreditCard, Globe, AlertTriangle, Power, PowerOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -20,6 +21,7 @@ interface StoreConfigModalProps {
     logo_url?: string;
     primary_color?: string;
     secondary_color?: string;
+    status?: string;
   } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -209,6 +211,44 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
     onError: () => toast.error("Erro ao vincular categorias"),
   });
 
+  // Toggle store status (activate/deactivate)
+  const toggleStatusMutation = useMutation({
+    mutationFn: async () => {
+      if (!store?.id) return;
+      const newStatus = store.status === "ativa" ? "inativa" : "ativa";
+      const { error } = await supabase
+        .from("stores")
+        .update({ status: newStatus })
+        .eq("id", store.id);
+      if (error) throw error;
+      return newStatus;
+    },
+    onSuccess: (newStatus) => {
+      queryClient.invalidateQueries({ queryKey: ["stores"] });
+      onOpenChange(false);
+      toast.success(newStatus === "ativa" ? "Empresa ativada com sucesso!" : "Empresa desativada com sucesso!");
+    },
+    onError: () => toast.error("Erro ao alterar status da empresa"),
+  });
+
+  // Delete store
+  const deleteStoreMutation = useMutation({
+    mutationFn: async () => {
+      if (!store?.id) return;
+      const { error } = await supabase
+        .from("stores")
+        .delete()
+        .eq("id", store.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stores"] });
+      onOpenChange(false);
+      toast.success("Empresa excluída com sucesso!");
+    },
+    onError: () => toast.error("Erro ao excluir empresa. Verifique se não há dados vinculados."),
+  });
+
   const toggleCategory = (categoryId: string) => {
     setSelectedCategories((prev) =>
       prev.includes(categoryId)
@@ -240,7 +280,7 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
         </DialogHeader>
 
         <Tabs defaultValue="branding" className="mt-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="branding" className="gap-2">
               <Palette className="h-4 w-4" />
               Identidade
@@ -256,6 +296,10 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
             <TabsTrigger value="categories" className="gap-2">
               <FolderTree className="h-4 w-4" />
               Categorias
+            </TabsTrigger>
+            <TabsTrigger value="danger" className="gap-2 text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              Perigo
             </TabsTrigger>
           </TabsList>
 
@@ -627,6 +671,111 @@ export const StoreConfigModal = ({ store, open, onOpenChange }: StoreConfigModal
                     {saveCategoriesMutation.isPending ? "Salvando..." : "Salvar Vínculos"}
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Danger Zone Tab */}
+          <TabsContent value="danger" className="space-y-6">
+            <Card className="border-destructive/50">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2 text-destructive">
+                  <PowerOff className="h-5 w-5" />
+                  {store.status === "ativa" ? "Desativar Empresa" : "Ativar Empresa"}
+                </CardTitle>
+                <CardDescription>
+                  {store.status === "ativa"
+                    ? "A empresa ficará invisível para os clientes e os pedidos serão pausados."
+                    : "Reative a empresa para que ela volte a aparecer para os clientes."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant={store.status === "ativa" ? "outline" : "default"}
+                      className={store.status === "ativa" ? "border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground" : ""}
+                    >
+                      {store.status === "ativa" ? (
+                        <>
+                          <PowerOff className="h-4 w-4 mr-2" />
+                          Desativar Empresa
+                        </>
+                      ) : (
+                        <>
+                          <Power className="h-4 w-4 mr-2" />
+                          Ativar Empresa
+                        </>
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        {store.status === "ativa" ? "Desativar empresa?" : "Ativar empresa?"}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {store.status === "ativa"
+                          ? "A empresa não aparecerá mais para os clientes. Você pode reativá-la a qualquer momento."
+                          : "A empresa voltará a aparecer para os clientes e poderá receber pedidos."}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => toggleStatusMutation.mutate()}
+                        className={store.status === "ativa" ? "bg-destructive hover:bg-destructive/90" : ""}
+                      >
+                        {store.status === "ativa" ? "Sim, desativar" : "Sim, ativar"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+
+            <Card className="border-destructive">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2 text-destructive">
+                  <Trash2 className="h-5 w-5" />
+                  Excluir Empresa
+                </CardTitle>
+                <CardDescription>
+                  Esta ação é irreversível. Todos os dados da empresa, incluindo produtos, pedidos e configurações serão permanentemente excluídos.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir Empresa Permanentemente
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta ação não pode ser desfeita. Isso excluirá permanentemente a empresa <strong>{store.nome}</strong> e todos os dados associados, incluindo:
+                        <ul className="list-disc list-inside mt-2 space-y-1">
+                          <li>Todos os produtos cadastrados</li>
+                          <li>Histórico de pedidos</li>
+                          <li>Configurações e personalizações</li>
+                          <li>Unidades cadastradas</li>
+                        </ul>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteStoreMutation.mutate()}
+                        className="bg-destructive hover:bg-destructive/90"
+                      >
+                        Sim, excluir permanentemente
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </CardContent>
             </Card>
           </TabsContent>
