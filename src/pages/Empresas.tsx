@@ -44,6 +44,7 @@ const Empresas = () => {
       logo_url: store.logo_url,
       primary_color: store.primary_color,
       secondary_color: store.secondary_color,
+      status: store.status,
     });
     setConfigModalOpen(true);
   };
