@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Package, Palette, Ruler, Image, DollarSign } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { X, Plus, Package, Palette, Ruler, Image, DollarSign, Boxes } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -15,6 +16,17 @@ interface ProductModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   storeId?: string;
+}
+
+interface VariantStock {
+  color: string;
+  size: string;
+  code: string;
+  quantity: string;
+  safetyStock: string;
+  price: string;
+  costPrice: string;
+  imageUrl: string;
 }
 
 const ProductModal = ({ open, onOpenChange, storeId }: ProductModalProps) => {
@@ -38,28 +50,61 @@ const ProductModal = ({ open, onOpenChange, storeId }: ProductModalProps) => {
   const [sizes, setSizes] = useState<string[]>([]);
   const [newSize, setNewSize] = useState("");
   
-  // Stock
-  const [code, setCode] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [safetyStock, setSafetyStock] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [price, setPrice] = useState("");
-  const [originalPrice, setOriginalPrice] = useState("");
+  // Stock per variant
+  const [variantStocks, setVariantStocks] = useState<Record<string, VariantStock>>({});
+
+  // Generate variant combinations
+  const variantCombinations = useMemo(() => {
+    if (colors.length === 0 && sizes.length === 0) return [];
+    if (colors.length === 0) return sizes.map(s => ({ color: "", size: s, key: `_${s}` }));
+    if (sizes.length === 0) return colors.map(c => ({ color: c, size: "", key: `${c}_` }));
+    
+    const combos: { color: string; size: string; key: string }[] = [];
+    colors.forEach(color => {
+      sizes.forEach(size => {
+        combos.push({ color, size, key: `${color}_${size}` });
+      });
+    });
+    return combos;
+  }, [colors, sizes]);
+
+  const updateVariantStock = (key: string, field: keyof VariantStock, value: string) => {
+    setVariantStocks(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        color: prev[key]?.color || "",
+        size: prev[key]?.size || "",
+        code: prev[key]?.code || "",
+        quantity: prev[key]?.quantity || "",
+        safetyStock: prev[key]?.safetyStock || "",
+        price: prev[key]?.price || "",
+        costPrice: prev[key]?.costPrice || "",
+        imageUrl: prev[key]?.imageUrl || "",
+        [field]: value,
+      },
+    }));
+  };
 
   const createProductMutation = useMutation({
     mutationFn: async () => {
       if (!storeId) throw new Error("Store ID is required");
       
+      // Calculate total stock and base price
+      const totalStock = Object.values(variantStocks).reduce(
+        (sum, v) => sum + (parseInt(v.quantity) || 0), 0
+      );
+      const firstVariantPrice = Object.values(variantStocks)[0]?.price;
+      const basePrice = parseFloat(firstVariantPrice) || 0;
+
       const { data: product, error: productError } = await supabase
         .from("products")
         .insert({
           store_id: storeId,
           name,
           description,
-          image_url: imageUrl || null,
-          price: parseFloat(price) || 0,
-          original_price: originalPrice ? parseFloat(originalPrice) : null,
-          stock_quantity: parseInt(quantity) || 0,
+          price: basePrice,
+          stock_quantity: totalStock,
           status: "rascunho",
         })
         .select()
@@ -67,24 +112,31 @@ const ProductModal = ({ open, onOpenChange, storeId }: ProductModalProps) => {
 
       if (productError) throw productError;
 
-      // Create color variants
-      for (const color of colors) {
-        await supabase.from("product_variants").insert({
-          product_id: product.id,
-          variant_type: "cor",
-          variant_value: color,
-          stock_quantity: 0,
-        });
-      }
+      // Create variants with stock
+      for (const combo of variantCombinations) {
+        const stock = variantStocks[combo.key];
+        if (!stock) continue;
 
-      // Create size variants
-      for (const size of sizes) {
-        await supabase.from("product_variants").insert({
-          product_id: product.id,
-          variant_type: "tamanho",
-          variant_value: size,
-          stock_quantity: 0,
-        });
+        if (combo.color) {
+          await supabase.from("product_variants").insert({
+            product_id: product.id,
+            variant_type: "cor",
+            variant_value: combo.color,
+            stock_quantity: parseInt(stock.quantity) || 0,
+            price_adjustment: 0,
+            image_url: stock.imageUrl || null,
+          });
+        }
+
+        if (combo.size) {
+          await supabase.from("product_variants").insert({
+            product_id: product.id,
+            variant_type: "tamanho",
+            variant_value: combo.size,
+            stock_quantity: parseInt(stock.quantity) || 0,
+            price_adjustment: 0,
+          });
+        }
       }
 
       return product;
@@ -113,12 +165,7 @@ const ProductModal = ({ open, onOpenChange, storeId }: ProductModalProps) => {
     setNewColor("");
     setSizes([]);
     setNewSize("");
-    setCode("");
-    setQuantity("");
-    setSafetyStock("");
-    setImageUrl("");
-    setPrice("");
-    setOriginalPrice("");
+    setVariantStocks({});
   };
 
   const addColor = () => {
@@ -148,8 +195,8 @@ const ProductModal = ({ open, onOpenChange, storeId }: ProductModalProps) => {
       toast.error("Nome do produto é obrigatório");
       return;
     }
-    if (!price) {
-      toast.error("Preço do produto é obrigatório");
+    if (variantCombinations.length === 0) {
+      toast.error("Adicione pelo menos uma variação (cor ou tamanho)");
       return;
     }
     createProductMutation.mutate();
@@ -157,7 +204,7 @@ const ProductModal = ({ open, onOpenChange, storeId }: ProductModalProps) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
@@ -165,257 +212,274 @@ const ProductModal = ({ open, onOpenChange, storeId }: ProductModalProps) => {
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="info" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="info">Informações</TabsTrigger>
-            <TabsTrigger value="dimensions">Dimensões</TabsTrigger>
-            <TabsTrigger value="variations">Variações</TabsTrigger>
-            <TabsTrigger value="stock">Estoque</TabsTrigger>
-          </TabsList>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* LEFT FRAME - Product Info */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Informações do Produto
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="name">Nome *</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Nome do produto"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="description">Descrição</Label>
+                  <Textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Descrição detalhada"
+                    rows={2}
+                  />
+                </div>
 
-          <TabsContent value="info" className="space-y-4 mt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <Label htmlFor="name">Nome *</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Nome do produto"
-                />
-              </div>
-              
-              <div className="col-span-2">
-                <Label htmlFor="description">Descrição</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Descrição detalhada do produto"
-                  rows={3}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="brand">Marca</Label>
-                <Input
-                  id="brand"
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
-                  placeholder="Marca do produto"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="model">Modelo</Label>
-                <Input
-                  id="model"
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder="Modelo do produto"
-                />
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="dimensions" className="space-y-4 mt-4">
-            <div className="flex items-center gap-2 text-muted-foreground mb-4">
-              <Ruler className="h-4 w-4" />
-              <span className="text-sm">Dimensões para cálculo de frete</span>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="width">Largura (cm)</Label>
-                <Input
-                  id="width"
-                  type="number"
-                  value={width}
-                  onChange={(e) => setWidth(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="height">Altura (cm)</Label>
-                <Input
-                  id="height"
-                  type="number"
-                  value={height}
-                  onChange={(e) => setHeight(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="depth">Profundidade (cm)</Label>
-                <Input
-                  id="depth"
-                  type="number"
-                  value={depth}
-                  onChange={(e) => setDepth(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="weight">Peso (kg)</Label>
-                <Input
-                  id="weight"
-                  type="number"
-                  step="0.01"
-                  value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="variations" className="space-y-6 mt-4">
-            {/* Colors */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Palette className="h-4 w-4 text-muted-foreground" />
-                <Label>Cores</Label>
-              </div>
-              
-              <div className="flex gap-2">
-                <Input
-                  value={newColor}
-                  onChange={(e) => setNewColor(e.target.value)}
-                  placeholder="Adicionar cor (ex: Azul)"
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addColor())}
-                />
-                <Button type="button" variant="outline" size="icon" onClick={addColor}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              <div className="flex flex-wrap gap-2">
-                {colors.map((color) => (
-                  <Badge key={color} variant="secondary" className="gap-1">
-                    {color}
-                    <X
-                      className="h-3 w-3 cursor-pointer"
-                      onClick={() => removeColor(color)}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="brand">Marca</Label>
+                    <Input
+                      id="brand"
+                      value={brand}
+                      onChange={(e) => setBrand(e.target.value)}
+                      placeholder="Marca"
                     />
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            {/* Sizes */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Ruler className="h-4 w-4 text-muted-foreground" />
-                <Label>Tamanhos</Label>
-              </div>
-              
-              <div className="flex gap-2">
-                <Input
-                  value={newSize}
-                  onChange={(e) => setNewSize(e.target.value)}
-                  placeholder="Adicionar tamanho (ex: M, G, 42)"
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSize())}
-                />
-                <Button type="button" variant="outline" size="icon" onClick={addSize}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              <div className="flex flex-wrap gap-2">
-                {sizes.map((size) => (
-                  <Badge key={size} variant="secondary" className="gap-1">
-                    {size}
-                    <X
-                      className="h-3 w-3 cursor-pointer"
-                      onClick={() => removeSize(size)}
+                  </div>
+                  <div>
+                    <Label htmlFor="model">Modelo</Label>
+                    <Input
+                      id="model"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      placeholder="Modelo"
                     />
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </TabsContent>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-          <TabsContent value="stock" className="space-y-4 mt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="code">Código (SKU)</Label>
-                <Input
-                  id="code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="SKU-001"
-                />
-              </div>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Ruler className="h-4 w-4" />
+                  Dimensões e Peso
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Largura (cm)</Label>
+                    <Input
+                      type="number"
+                      value={width}
+                      onChange={(e) => setWidth(e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label>Altura (cm)</Label>
+                    <Input
+                      type="number"
+                      value={height}
+                      onChange={(e) => setHeight(e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label>Profundidade (cm)</Label>
+                    <Input
+                      type="number"
+                      value={depth}
+                      onChange={(e) => setDepth(e.target.value)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label>Peso (kg)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={weight}
+                      onChange={(e) => setWeight(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-              <div>
-                <Label htmlFor="quantity">Quantidade em Estoque</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Palette className="h-4 w-4" />
+                  Variações
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Colors */}
+                <div className="space-y-2">
+                  <Label>Cores</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={newColor}
+                      onChange={(e) => setNewColor(e.target.value)}
+                      placeholder="Ex: Azul, Vermelho"
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addColor())}
+                    />
+                    <Button type="button" variant="outline" size="icon" onClick={addColor}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {colors.map((color) => (
+                      <Badge key={color} variant="secondary" className="gap-1">
+                        {color}
+                        <X className="h-3 w-3 cursor-pointer" onClick={() => removeColor(color)} />
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
 
-              <div>
-                <Label htmlFor="safetyStock">Estoque de Segurança</Label>
-                <Input
-                  id="safetyStock"
-                  type="number"
-                  value={safetyStock}
-                  onChange={(e) => setSafetyStock(e.target.value)}
-                  placeholder="5"
-                />
-              </div>
+                {/* Sizes */}
+                <div className="space-y-2">
+                  <Label>Tamanhos</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={newSize}
+                      onChange={(e) => setNewSize(e.target.value)}
+                      placeholder="Ex: P, M, G, 38, 40"
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSize())}
+                    />
+                    <Button type="button" variant="outline" size="icon" onClick={addSize}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {sizes.map((size) => (
+                      <Badge key={size} variant="secondary" className="gap-1">
+                        {size}
+                        <X className="h-3 w-3 cursor-pointer" onClick={() => removeSize(size)} />
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-              <div>
-                <Label htmlFor="imageUrl" className="flex items-center gap-2">
-                  <Image className="h-4 w-4" />
-                  URL da Foto
-                </Label>
-                <Input
-                  id="imageUrl"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://..."
-                />
-              </div>
+          {/* RIGHT FRAME - Stock per Variation */}
+          <div>
+            <Card className="h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Boxes className="h-4 w-4" />
+                  Estoque por Variação
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {variantCombinations.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Boxes className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Adicione cores ou tamanhos para configurar o estoque de cada variação</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                    {variantCombinations.map((combo) => (
+                      <div key={combo.key} className="p-3 border rounded-lg space-y-3">
+                        <div className="flex items-center gap-2">
+                          {combo.color && <Badge variant="outline">{combo.color}</Badge>}
+                          {combo.size && <Badge variant="secondary">{combo.size}</Badge>}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs">Código (SKU)</Label>
+                            <Input
+                              value={variantStocks[combo.key]?.code || ""}
+                              onChange={(e) => updateVariantStock(combo.key, "code", e.target.value)}
+                              placeholder="SKU-001"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Quantidade</Label>
+                            <Input
+                              type="number"
+                              value={variantStocks[combo.key]?.quantity || ""}
+                              onChange={(e) => updateVariantStock(combo.key, "quantity", e.target.value)}
+                              placeholder="0"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Estoque Segurança</Label>
+                            <Input
+                              type="number"
+                              value={variantStocks[combo.key]?.safetyStock || ""}
+                              onChange={(e) => updateVariantStock(combo.key, "safetyStock", e.target.value)}
+                              placeholder="5"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs flex items-center gap-1">
+                              <DollarSign className="h-3 w-3" />
+                              Valor Venda
+                            </Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={variantStocks[combo.key]?.price || ""}
+                              onChange={(e) => updateVariantStock(combo.key, "price", e.target.value)}
+                              placeholder="0.00"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Valor Origem</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={variantStocks[combo.key]?.costPrice || ""}
+                              onChange={(e) => updateVariantStock(combo.key, "costPrice", e.target.value)}
+                              placeholder="0.00"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs flex items-center gap-1">
+                              <Image className="h-3 w-3" />
+                              URL Foto
+                            </Label>
+                            <Input
+                              value={variantStocks[combo.key]?.imageUrl || ""}
+                              onChange={(e) => updateVariantStock(combo.key, "imageUrl", e.target.value)}
+                              placeholder="https://..."
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
-              <div>
-                <Label htmlFor="price" className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
-                  Valor de Venda *
-                </Label>
-                <Input
-                  id="price"
-                  type="number"
-                  step="0.01"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
+        <Separator className="my-4" />
 
-              <div>
-                <Label htmlFor="originalPrice">Valor de Origem (Custo)</Label>
-                <Input
-                  id="originalPrice"
-                  type="number"
-                  step="0.01"
-                  value={originalPrice}
-                  onChange={(e) => setOriginalPrice(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+        <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
