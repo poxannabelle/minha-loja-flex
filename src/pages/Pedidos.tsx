@@ -1,154 +1,190 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ShoppingCart, Clock, CheckCircle, Store, DollarSign } from "lucide-react";
+import InStoreSaleForm from "@/components/pedidos/InStoreSaleForm";
+import OrdersList from "@/components/pedidos/OrdersList";
 
 const Pedidos = () => {
-  const pedidos = [
-    { 
-      id: "PED-001", 
-      cliente: "João Silva", 
-      valor: "R$ 450,00", 
-      status: "pendente",
-      data: "01/11/2025",
-      items: 3
-    },
-    { 
-      id: "PED-002", 
-      cliente: "Maria Santos", 
-      valor: "R$ 320,00", 
-      status: "aprovado",
-      data: "31/10/2025",
-      items: 2
-    },
-    { 
-      id: "PED-003", 
-      cliente: "Carlos Oliveira", 
-      valor: "R$ 180,00", 
-      status: "entregue",
-      data: "30/10/2025",
-      items: 1
-    },
-    { 
-      id: "PED-004", 
-      cliente: "Ana Costa", 
-      valor: "R$ 90,00", 
-      status: "cancelado",
-      data: "29/10/2025",
-      items: 1
-    },
-  ];
+  const [selectedStoreId, setSelectedStoreId] = useState<string>("");
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "pendente":
-        return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" />Pendente</Badge>;
-      case "aprovado":
-        return <Badge className="gap-1 bg-blue-600"><CheckCircle className="h-3 w-3" />Aprovado</Badge>;
-      case "entregue":
-        return <Badge className="gap-1 bg-green-600"><CheckCircle className="h-3 w-3" />Entregue</Badge>;
-      case "cancelado":
-        return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" />Cancelado</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
-  };
+  // Buscar lojas do usuário
+  const { data: stores } = useQuery({
+    queryKey: ["user-stores"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { data, error } = await supabase
+        .from("stores")
+        .select("*")
+        .eq("owner_id", user.id);
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Buscar estatísticas de pedidos
+  const { data: stats } = useQuery({
+    queryKey: ["order-stats", selectedStoreId],
+    queryFn: async () => {
+      if (!selectedStoreId) return null;
+
+      const { data: orders, error } = await supabase
+        .from("orders")
+        .select("status, total, order_type")
+        .eq("store_id", selectedStoreId);
+
+      if (error) throw error;
+
+      const totalOrders = orders?.length || 0;
+      const pendingOrders = orders?.filter(o => o.status === "pendente").length || 0;
+      const completedOrders = orders?.filter(o => ["entregue", "finalizado"].includes(o.status)).length || 0;
+      const totalRevenue = orders?.reduce((sum, o) => sum + Number(o.total), 0) || 0;
+      const onlineOrders = orders?.filter(o => o.order_type === "online").length || 0;
+      const storeOrders = orders?.filter(o => o.order_type === "loja").length || 0;
+
+      return {
+        totalOrders,
+        pendingOrders,
+        completedOrders,
+        totalRevenue,
+        onlineOrders,
+        storeOrders,
+      };
+    },
+    enabled: !!selectedStoreId,
+  });
+
+  // Auto-selecionar primeira loja
+  if (stores?.length && !selectedStoreId) {
+    setSelectedStoreId(stores[0].id);
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <div className="container mx-auto px-6 py-12">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">Pedidos e Compras</h1>
-          <p className="text-muted-foreground">Gerencie todos os pedidos da plataforma</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-foreground mb-2">Pedidos e Compras</h1>
+            <p className="text-muted-foreground">Gerencie pedidos online e vendas na loja</p>
+          </div>
+
+          {stores && stores.length > 1 && (
+            <Select value={selectedStoreId} onValueChange={setSelectedStoreId}>
+              <SelectTrigger className="w-[250px]">
+                <SelectValue placeholder="Selecione a loja" />
+              </SelectTrigger>
+              <SelectContent>
+                {stores.map((store) => (
+                  <SelectItem key={store.id} value={store.id}>
+                    {store.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Total Pedidos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">156</p>
-              <p className="text-sm text-muted-foreground mt-1">este mês</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Pendentes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-orange-600">12</p>
-              <p className="text-sm text-muted-foreground mt-1">aguardando</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Aprovados</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-blue-600">28</p>
-              <p className="text-sm text-muted-foreground mt-1">em processamento</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Faturamento</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-green-600">R$ 45.2k</p>
-              <p className="text-sm text-muted-foreground mt-1">este mês</p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Estatísticas */}
+        {stats && (
+          <div className="grid md:grid-cols-6 gap-4 mb-8">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{stats.totalOrders}</p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Pedidos Recentes</CardTitle>
-            <CardDescription>Lista de todos os pedidos realizados</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {pedidos.map((pedido) => (
-                <div key={pedido.id} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/5 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-accent/10 rounded-lg">
-                      <ShoppingCart className="h-6 w-6 text-accent" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{pedido.id}</p>
-                      <p className="text-sm text-muted-foreground">{pedido.cliente}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-8">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Items</p>
-                      <p className="font-medium">{pedido.items}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Valor</p>
-                      <p className="font-medium text-lg">{pedido.valor}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Data</p>
-                      <p className="font-medium">{pedido.data}</p>
-                    </div>
-                    <div className="min-w-[120px]">
-                      {getStatusBadge(pedido.status)}
-                    </div>
-                    <Button variant="outline" size="sm">Ver Detalhes</Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                  <ShoppingCart className="h-4 w-4" />
+                  Online
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-blue-600">{stats.onlineOrders}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                  <Store className="h-4 w-4" />
+                  Na Loja
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-purple-600">{stats.storeOrders}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  Pendentes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-orange-600">{stats.pendingOrders}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                  <CheckCircle className="h-4 w-4" />
+                  Finalizados
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-green-600">{stats.completedOrders}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                  <DollarSign className="h-4 w-4" />
+                  Faturamento
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-green-600">
+                  R$ {stats.totalRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {selectedStoreId ? (
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Frame de Venda na Loja */}
+            <InStoreSaleForm storeId={selectedStoreId} />
+
+            {/* Frame de Lista de Pedidos */}
+            <OrdersList storeId={selectedStoreId} />
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              {stores?.length === 0
+                ? "Você ainda não possui uma loja cadastrada."
+                : "Selecione uma loja para visualizar os pedidos."}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
