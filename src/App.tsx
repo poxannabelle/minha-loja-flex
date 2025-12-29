@@ -14,6 +14,8 @@ import MinhaConta from "./pages/MinhaConta";
 import Categorias from "./pages/Categorias";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Cardapio from "./pages/Cardapio";
+import CardapioAdmin from "./pages/CardapioAdmin";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +37,8 @@ const App = () => {
             <Route path="/catalogo" element={<Catalogo />} />
             <Route path="/categorias" element={<Categorias />} />
             <Route path="/minha-conta" element={<MinhaConta />} />
+            <Route path="/cardapio/:storeSlug" element={<Cardapio />} />
+            <Route path="/cardapio-admin" element={<CardapioAdmin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
