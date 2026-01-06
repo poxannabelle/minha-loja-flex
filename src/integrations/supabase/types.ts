@@ -827,15 +827,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["store_status"]
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "stores_owner_id_fkey"
-            columns: ["owner_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_addresses: {
         Row: {
