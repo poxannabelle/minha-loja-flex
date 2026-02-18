@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Building2, Package, ShoppingCart, ClipboardList, User, LogOut, LayoutDashboard, FolderTree } from "lucide-react";
+import { Building2, Package, ShoppingCart, ClipboardList, User, LogOut, LayoutDashboard, FolderTree, Users } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,11 +10,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { useStoreContext } from "@/hooks/useStoreContext";
 import logo from "@/assets/plazoo-logo.png";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { isAdmin } = useStoreContext();
 
   const handleSignOut = async () => {
     await signOut();
@@ -66,6 +68,14 @@ const Navbar = () => {
                 Pedidos
               </Button>
             </Link>
+            {isAdmin && (
+              <Link to="/usuarios">
+                <Button variant="ghost" className="gap-2">
+                  <Users className="h-4 w-4" />
+                  Usuários
+                </Button>
+              </Link>
+            )}
           </div>
           
           <div className="flex items-center gap-4">
