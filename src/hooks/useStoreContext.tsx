@@ -17,6 +17,8 @@ interface StoreContextType {
   selectedStore: Store | null;
   setSelectedStoreId: (id: string) => void;
   isLoading: boolean;
+  isAdmin: boolean;
+  allStores: Store[];
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -24,8 +26,30 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 export const StoreProvider = ({ children }: { children: ReactNode }) => {
   const [selectedStoreId, setSelectedStoreIdState] = useState<string>("");
 
-  // Fetch all stores owned by the user
-  const { data: stores = [], isLoading } = useQuery({
+  // Check if current user is admin
+  const { data: isAdmin = false } = useQuery({
+    queryKey: ["user-is-admin"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error checking admin role:", error);
+        return false;
+      }
+      return !!data;
+    },
+  });
+
+  // Fetch stores owned by the user
+  const { data: ownStores = [], isLoading: loadingOwn } = useQuery({
     queryKey: ["user-stores-context"],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -45,6 +69,28 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
       return data as Store[];
     },
   });
+
+  // Fetch ALL stores if admin
+  const { data: allStoresData = [], isLoading: loadingAll } = useQuery({
+    queryKey: ["all-stores-admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stores")
+        .select("id, name, slug, logo_url, primary_color, secondary_color, is_food_business")
+        .order("name");
+
+      if (error) {
+        console.error("Error fetching all stores:", error);
+        return [];
+      }
+
+      return data as Store[];
+    },
+    enabled: isAdmin,
+  });
+
+  const stores = isAdmin ? allStoresData : ownStores;
+  const isLoading = loadingOwn || (isAdmin && loadingAll);
 
   // Auto-select first store if none selected
   useEffect(() => {
@@ -72,7 +118,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <StoreContext.Provider value={{ stores, selectedStore, setSelectedStoreId, isLoading }}>
+    <StoreContext.Provider value={{ stores, selectedStore, setSelectedStoreId, isLoading, isAdmin, allStores: allStoresData }}>
       {children}
     </StoreContext.Provider>
   );

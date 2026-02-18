@@ -1,4 +1,6 @@
 import Navbar from "@/components/Navbar";
+import StoreBrandingWrapper from "@/components/StoreBrandingWrapper";
+import { useStoreContext } from "@/hooks/useStoreContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Package, 
@@ -67,14 +69,16 @@ const StatCard = ({ title, value, description, icon, trend, variant = "default" 
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { selectedStore } = useStoreContext();
+  const selectedStoreId = selectedStore?.id || "";
 
-  // Buscar produtos
+  // Buscar produtos filtrados pela loja selecionada
   const { data: products, isLoading: loadingProducts } = useQuery({
-    queryKey: ['dashboard-products'],
+    queryKey: ['dashboard-products', selectedStoreId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, price, stock_quantity, status');
+      let query = supabase.from('products').select('id, price, stock_quantity, status');
+      if (selectedStoreId) query = query.eq('store_id', selectedStoreId);
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -94,13 +98,13 @@ const Dashboard = () => {
     enabled: !!user
   });
 
-  // Buscar categorias
+  // Buscar categorias filtradas pela loja
   const { data: categories, isLoading: loadingCategories } = useQuery({
-    queryKey: ['dashboard-categories'],
+    queryKey: ['dashboard-categories', selectedStoreId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('id');
+      let query = supabase.from('categories').select('id');
+      if (selectedStoreId) query = query.eq('store_id', selectedStoreId);
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -152,12 +156,8 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
-      <div className="container mx-auto px-6 py-12">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">Visão Geral</h1>
-          <p className="text-muted-foreground">Acompanhe os principais indicadores do seu negócio</p>
-        </div>
+      <StoreBrandingWrapper title="Visão Geral" subtitle="Acompanhe os principais indicadores do seu negócio">
+        <div className="container mx-auto px-6 py-8">
 
         {/* Indicadores Principais */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
@@ -341,7 +341,8 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </div>
-      </div>
+        </div>
+      </StoreBrandingWrapper>
     </div>
   );
 };
