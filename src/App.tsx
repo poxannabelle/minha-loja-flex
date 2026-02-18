@@ -15,6 +15,7 @@ import MinhaConta from "./pages/MinhaConta";
 import Categorias from "./pages/Categorias";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Usuarios from "./pages/Usuarios";
 import Cardapio from "./pages/Cardapio";
 import CardapioAdmin from "./pages/CardapioAdmin";
 
@@ -41,6 +42,7 @@ const App = () => {
               <Route path="/minha-conta" element={<MinhaConta />} />
               <Route path="/cardapio/:storeSlug" element={<Cardapio />} />
               <Route path="/cardapio-admin" element={<CardapioAdmin />} />
+              <Route path="/usuarios" element={<Usuarios />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
