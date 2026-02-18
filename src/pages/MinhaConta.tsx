@@ -29,33 +29,33 @@ const MinhaConta = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="container mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Minha Conta</h1>
-          <p className="text-muted-foreground">Gerencie suas informações pessoais</p>
+      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 max-w-5xl">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Minha Conta</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Gerencie suas informações pessoais</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
-            <TabsTrigger value="profile" className="gap-2">
+          <TabsList className="grid w-full grid-cols-5 h-auto p-1">
+            <TabsTrigger value="profile" className="gap-2 py-2.5 data-[state=active]:shadow-sm">
               <User className="h-4 w-4" />
-              <span className="hidden sm:inline">Perfil</span>
+              <span className="hidden sm:inline text-sm">Perfil</span>
             </TabsTrigger>
-            <TabsTrigger value="addresses" className="gap-2">
+            <TabsTrigger value="addresses" className="gap-2 py-2.5 data-[state=active]:shadow-sm">
               <MapPin className="h-4 w-4" />
-              <span className="hidden sm:inline">Endereços</span>
+              <span className="hidden sm:inline text-sm">Endereços</span>
             </TabsTrigger>
-            <TabsTrigger value="payments" className="gap-2">
+            <TabsTrigger value="payments" className="gap-2 py-2.5 data-[state=active]:shadow-sm">
               <CreditCard className="h-4 w-4" />
-              <span className="hidden sm:inline">Pagamento</span>
+              <span className="hidden sm:inline text-sm">Cartões</span>
             </TabsTrigger>
-            <TabsTrigger value="cart" className="gap-2">
+            <TabsTrigger value="cart" className="gap-2 py-2.5 data-[state=active]:shadow-sm">
               <ShoppingCart className="h-4 w-4" />
-              <span className="hidden sm:inline">Carrinho</span>
+              <span className="hidden sm:inline text-sm">Carrinho</span>
             </TabsTrigger>
-            <TabsTrigger value="favorites" className="gap-2">
+            <TabsTrigger value="favorites" className="gap-2 py-2.5 data-[state=active]:shadow-sm">
               <Heart className="h-4 w-4" />
-              <span className="hidden sm:inline">Favoritos</span>
+              <span className="hidden sm:inline text-sm">Favoritos</span>
             </TabsTrigger>
           </TabsList>
 
