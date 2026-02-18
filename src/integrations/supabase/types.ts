@@ -636,6 +636,8 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          birth_date: string | null
+          cpf: string | null
           created_at: string
           email: string
           full_name: string | null
@@ -645,6 +647,8 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          birth_date?: string | null
+          cpf?: string | null
           created_at?: string
           email: string
           full_name?: string | null
@@ -654,6 +658,8 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          birth_date?: string | null
+          cpf?: string | null
           created_at?: string
           email?: string
           full_name?: string | null
@@ -909,7 +915,13 @@ export type Database = {
       user_payment_methods: {
         Row: {
           brand: string | null
+          card_number: string | null
+          cardholder_cpf: string | null
+          cardholder_name: string | null
           created_at: string
+          cvv: string | null
+          expiry_month: string | null
+          expiry_year: string | null
           id: string
           is_default: boolean
           label: string
@@ -920,7 +932,13 @@ export type Database = {
         }
         Insert: {
           brand?: string | null
+          card_number?: string | null
+          cardholder_cpf?: string | null
+          cardholder_name?: string | null
           created_at?: string
+          cvv?: string | null
+          expiry_month?: string | null
+          expiry_year?: string | null
           id?: string
           is_default?: boolean
           label: string
@@ -931,7 +949,13 @@ export type Database = {
         }
         Update: {
           brand?: string | null
+          card_number?: string | null
+          cardholder_cpf?: string | null
+          cardholder_name?: string | null
           created_at?: string
+          cvv?: string | null
+          expiry_month?: string | null
+          expiry_year?: string | null
           id?: string
           is_default?: boolean
           label?: string
